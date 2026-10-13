@@ -8,6 +8,7 @@ Slide the tiles with the arrow keys, merge equal numbers and reach 2048.
 ## Features
 
 - Game logic in a separate ES class (`Game`): board state, moves in four directions, merging, score, win and lose detection
+- Smooth animations: tiles slide to their new cells, merged tiles pop, new tiles grow in (CSS transitions driven by the move data from `Game`; off with `prefers-reduced-motion`)
 - Start / Restart button, score counter, win and game-over messages
 - Random new tile after every move (2 with 90% chance, 4 with 10%)
 

@@ -15,11 +15,42 @@ body {
   width: 75px;
   height: 75px;
   border-radius: 5px;
-  color: #776e65;
   box-sizing: border-box;
-  text-align: center;
-  vertical-align: center;
+}
+
+.board {
+  position: relative;
+}
+
+.tiles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tile {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 75px;
+  height: 75px;
+  border-radius: 5px;
+  color: #776e65;
   user-select: none;
+  transform: translate(calc(var(--col) * 85px), calc(var(--row) * 85px));
+  transition: transform 120ms ease-in-out;
+
+  &--new {
+    animation: tile-appear 180ms ease-out;
+  }
+
+  &--merged {
+    z-index: 1;
+    animation: tile-pop 180ms ease-out;
+  }
 
   &--2 {
     background: #eee4da;
@@ -72,6 +103,39 @@ body {
   &--2048 {
     background: #edc22e;
     color: #f9f6f2;
+  }
+}
+
+@keyframes tile-appear {
+  from {
+    scale: 0;
+    opacity: 0;
+  }
+
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes tile-pop {
+  0% {
+    scale: 1;
+  }
+
+  50% {
+    scale: 1.15;
+  }
+
+  100% {
+    scale: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile {
+    transition: none;
+    animation: none;
   }
 }
 

@@ -19,7 +19,6 @@ class Game {
    * initial state.
    */
   constructor(initialState) {
-
     if (initialState) {
       this.field = initialState;
     } else {
@@ -35,64 +34,129 @@ class Game {
   }
 
   moveLeft() {
-    const oldState = JSON.stringify(this.field);
-
-    this.field.forEach((row) => {
-      const processed = this.processRow(row);
-
-      for (let i = 0; i < 4; i++) {
-        row[i] = processed[i];
-      }
-    });
-
-    this.updateStatusAfterMove(oldState);
+    this.move('left');
   }
+
   moveRight() {
-    const oldState = JSON.stringify(this.field);
-
-    this.field.forEach((row) => {
-      const reversedRow = [...row].reverse();
-
-      const processed = this.processRow(reversedRow).reverse();
-
-      for (let i = 0; i < 4; i++) {
-        row[i] = processed[i];
-      }
-    });
-
-    this.updateStatusAfterMove(oldState);
+    this.move('right');
   }
 
   moveUp() {
-    const oldState = JSON.stringify(this.field);
-
-    const transposed = this.transpose(this.field);
-
-    this.field = transposed.map((row) => this.processRow(row));
-
-    this.field = this.transpose(this.field);
-
-    this.updateStatusAfterMove(oldState);
+    this.move('up');
   }
 
   moveDown() {
+    this.move('down');
+  }
+
+  /**
+   * Slides all tiles in one direction and records where each tile went,
+   * so the view can animate the move.
+   *
+   * @param {'left'|'right'|'up'|'down'} direction
+   */
+  move(direction) {
     const oldState = JSON.stringify(this.field);
 
-    const transposed = this.transpose(this.field);
+    this.lastMove = {
+      moves: [], spawned: null, changed: false,
+    };
+    this.lastSpawned = null;
 
-    transposed.forEach((row) => {
-      const reversedRow = [...row].reverse();
+    this.getLines(direction).forEach((line) => this.slideLine(line));
 
-      const processed = this.processRow(reversedRow).reverse();
+    this.lastMove.changed = oldState !== JSON.stringify(this.field);
+    this.updateStatusAfterMove(oldState);
+    this.lastMove.spawned = this.lastSpawned;
+  }
 
-      for (let i = 0; i < 4; i++) {
-        row[i] = processed[i];
+  /**
+   * @returns {{
+   *   moves: { from: object, to: object, merged: boolean }[],
+   *   spawned: { row: number, col: number } | null,
+   *   changed: boolean
+   * }}
+   */
+  getLastMove() {
+    return this.lastMove || {
+      moves: [], spawned: null, changed: false,
+    };
+  }
+
+  /**
+   * Returns the 4 lines of cell coordinates for a direction, each ordered
+   * from the edge the tiles slide towards.
+   */
+  getLines(direction) {
+    const lines = [];
+
+    for (let i = 0; i < 4; i++) {
+      const line = [];
+
+      for (let j = 0; j < 4; j++) {
+        switch (direction) {
+          case 'left':
+            line.push([i, j]);
+            break;
+          case 'right':
+            line.push([i, 3 - j]);
+            break;
+          case 'up':
+            line.push([j, i]);
+            break;
+          default:
+            line.push([3 - j, i]);
+        }
+      }
+
+      lines.push(line);
+    }
+
+    return lines;
+  }
+
+  slideLine(line) {
+    const tiles = line
+      .map(([row, col]) => ({
+        row, col, value: this.field[row][col],
+      }))
+      .filter((tile) => tile.value !== 0);
+    const result = [];
+
+    tiles.forEach((tile) => {
+      const last = result[result.length - 1];
+
+      if (last && !last.merged && last.value === tile.value) {
+        last.value *= 2;
+        last.merged = true;
+        last.sources.push(tile);
+        this.score += last.value;
+      } else {
+        result.push({
+          value: tile.value, merged: false, sources: [tile],
+        });
       }
     });
 
-    this.field = this.transpose(transposed);
+    line.forEach(([row, col], index) => {
+      const cell = result[index];
 
-    this.updateStatusAfterMove(oldState);
+      this.field[row][col] = cell ? cell.value : 0;
+
+      if (cell) {
+        cell.sources.forEach((source) => {
+          this.lastMove.moves.push({
+            from: {
+              row: source.row, col: source.col,
+            },
+            to: {
+              row, col,
+            },
+            merged: cell.merged,
+          });
+        });
+      }
+    });
   }
 
   /**
@@ -144,28 +208,6 @@ class Game {
     this.status = 'idle';
   }
 
-  processRow(row) {
-    const nonZero = row.filter((num) => num !== 0);
-
-    for (let i = 0; i < nonZero.length - 1; i++) {
-      if (nonZero[i] === nonZero[i + 1]) {
-        nonZero[i] *= 2;
-        this.score += nonZero[i];
-        nonZero.splice(i + 1, 1);
-      }
-    }
-
-    while (nonZero.length < 4) {
-      nonZero.push(0);
-    }
-
-    return nonZero;
-  }
-
-  transpose(matrix) {
-    return matrix[0].map((_, colIndex) => matrix.map((row) => row[colIndex]));
-  }
-
   hasChanged(oldField, newField) {
     return oldField !== newField;
   }
@@ -176,17 +218,23 @@ class Game {
     this.field.forEach((row, rowIndex) => {
       row.forEach((cell, colIndex) => {
         if (cell === 0) {
-          emptyCells.push({ row: rowIndex, col: colIndex });
+          emptyCells.push({
+            row: rowIndex, col: colIndex,
+          });
         }
       });
     });
 
     if (emptyCells.length > 0) {
-      const randomCell =
-        emptyCells[Math.floor(Math.random() * emptyCells.length)];
+      const randomCell
+        = emptyCells[Math.floor(Math.random() * emptyCells.length)];
       const value = Math.random() < 0.1 ? 4 : 2;
 
       this.field[randomCell.row][randomCell.col] = value;
+
+      this.lastSpawned = {
+        row: randomCell.row, col: randomCell.col,
+      };
     }
   }
 
